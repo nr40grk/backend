@@ -1,6 +1,6 @@
 const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
+const { Readable } = require('stream');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -8,38 +8,40 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// ─── ARTIST PORTFOLIO STORAGE ───
-const artistStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'inktemple/artists',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-    transformation: [{ width: 1200, height: 1500, crop: 'limit', quality: 'auto:good' }],
-  },
-});
+const memoryStorage = multer.memoryStorage();
 
-// ─── BOOKING ATTACHMENT STORAGE ───
-const bookingStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'inktemple/bookings',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
-    resource_type: 'auto',
-    transformation: [{ quality: 'auto:good' }],
-  },
-});
+function uploadBuffer(buffer, options) {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(options, (error, result) => {
+      if (error) return reject(error);
+      resolve(result);
+    });
+    const readable = new Readable();
+    readable._read = () => {};
+    readable.push(buffer);
+    readable.push(null);
+    readable.pipe(uploadStream);
+  });
+}
 
 const uploadArtistPhoto = multer({
-  storage: artistStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  storage: memoryStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) cb(null, true);
     else cb(new Error('Only JPG, PNG, WEBP allowed'), false);
   },
 }).single('photo');
 
+async function processArtistPhoto(file) {
+  return uploadBuffer(file.buffer, {
+    folder: 'inktemple/artists',
+    transformation: [{ width: 1200, height: 1500, crop: 'limit', quality: 'auto:good' }],
+  });
+}
+
 const uploadBookingFiles = multer({
-  storage: bookingStorage,
+  storage: memoryStorage,
   limits: { fileSize: 10 * 1024 * 1024, files: 5 },
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
@@ -48,8 +50,23 @@ const uploadBookingFiles = multer({
   },
 }).array('attachments', 5);
 
+async function processBookingFile(file) {
+  const isPdf = file.mimetype === 'application/pdf';
+  return uploadBuffer(file.buffer, {
+    folder: 'inktemple/bookings',
+    resource_type: isPdf ? 'raw' : 'image',
+    ...(isPdf ? {} : { transformation: [{ quality: 'auto:good' }] }),
+  });
+}
+
 async function deleteFromCloudinary(publicId, resourceType = 'image') {
   return cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
 }
 
-module.exports = { uploadArtistPhoto, uploadBookingFiles, deleteFromCloudinary };
+module.exports = {
+  uploadArtistPhoto,
+  processArtistPhoto,
+  uploadBookingFiles,
+  processBookingFile,
+  deleteFromCloudinary,
+};
