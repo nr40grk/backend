@@ -1,114 +1,75 @@
 const express = require('express');
 const router = express.Router();
-const Artist = require('../models/Artist');
+const Booking = require('../models/Booking');
 const auth = require('../middleware/auth');
-const { uploadArtistPhoto, deleteFromCloudinary } = require('../utils/cloudinary');
+const { uploadBookingFiles, processBookingFile } = require('../utils/cloudinary');
+const { sendBookingNotification, sendBookingConfirmation } = require('../utils/email');
 
-// GET /api/artists — public, returns all active artists
-router.get('/', async (req, res) => {
-  try {
-    const artists = await Artist.find({ active: true }).sort({ order: 1, createdAt: 1 });
-    res.json(artists);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/artists/all — admin, returns all including inactive
-router.get('/all', auth, async (req, res) => {
-  try {
-    const artists = await Artist.find().sort({ order: 1, createdAt: 1 });
-    res.json(artists);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/artists — admin, create artist
-router.post('/', auth, async (req, res) => {
-  try {
-    const { name, role, bio, order, active } = req.body;
-    if (!name || !role?.gr || !role?.en || !bio?.gr || !bio?.en) {
-      return res.status(400).json({ error: 'Missing required fields: name, role (gr/en), bio (gr/en)' });
-    }
-    const artist = new Artist({ name, role, bio, order: order || 0, active: active !== false });
-    await artist.save();
-    res.status(201).json(artist);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// PUT /api/artists/:id — admin, update artist details
-router.put('/:id', auth, async (req, res) => {
-  try {
-    const { name, role, bio, order, active } = req.body;
-    const artist = await Artist.findByIdAndUpdate(
-      req.params.id,
-      { name, role, bio, order, active },
-      { new: true, runValidators: true }
-    );
-    if (!artist) return res.status(404).json({ error: 'Artist not found' });
-    res.json(artist);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// DELETE /api/artists/:id — admin, delete artist + all their Cloudinary photos
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    const artist = await Artist.findById(req.params.id);
-    if (!artist) return res.status(404).json({ error: 'Artist not found' });
-
-    // Delete all photos from Cloudinary
-    await Promise.all(artist.photos.map(p => deleteFromCloudinary(p.publicId)));
-
-    await artist.deleteOne();
-    res.json({ message: 'Artist deleted' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/artists/:id/photos — admin, upload a photo
-router.post('/:id/photos', auth, (req, res) => {
-  uploadArtistPhoto(req, res, async (err) => {
+// POST /api/booking — public
+router.post('/', (req, res) => {
+  uploadBookingFiles(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.message });
     try {
-      const artist = await Artist.findById(req.params.id);
-      if (!artist) return res.status(404).json({ error: 'Artist not found' });
+      const { fullName, phone, email, artist, service, message } = req.body;
+      if (!fullName || !phone || !email || !artist || !service)
+        return res.status(400).json({ error: 'Missing required fields' });
 
-      const photo = {
-        url: req.file.path,
-        publicId: req.file.filename,
-        caption: req.body.caption || '',
-      };
-      artist.photos.push(photo);
-      await artist.save();
-      res.status(201).json(artist);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
+      // Upload files to Cloudinary
+      const attachments = [];
+      for (const file of (req.files || [])) {
+        const result = await processBookingFile(file);
+        attachments.push({
+          url: result.secure_url,
+          publicId: result.public_id,
+          originalName: file.originalname,
+        });
+      }
+
+      const booking = new Booking({ fullName, phone, email, artist, service, message, attachments });
+      await booking.save();
+
+      Promise.all([
+        sendBookingNotification(booking),
+        sendBookingConfirmation(booking),
+      ]).catch(err => console.error('Email error:', err.message));
+
+      res.status(201).json({ success: true, message: 'Booking received' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
   });
 });
 
-// DELETE /api/artists/:id/photos/:photoId — admin, remove a specific photo
-router.delete('/:id/photos/:photoId', auth, async (req, res) => {
+// GET /api/booking — admin
+router.get('/', auth, async (req, res) => {
   try {
-    const artist = await Artist.findById(req.params.id);
-    if (!artist) return res.status(404).json({ error: 'Artist not found' });
+    const { status, page = 1, limit = 20 } = req.query;
+    const filter = status ? { status } : {};
+    const bookings = await Booking.find(filter).sort({ createdAt: -1 }).skip((page-1)*limit).limit(Number(limit));
+    const total = await Booking.countDocuments(filter);
+    res.json({ bookings, total, page: Number(page), pages: Math.ceil(total/limit) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    const photo = artist.photos.id(req.params.photoId);
-    if (!photo) return res.status(404).json({ error: 'Photo not found' });
+// PATCH /api/booking/:id — admin
+router.patch('/:id', auth, async (req, res) => {
+  try {
+    const { status, notes, read } = req.body;
+    const booking = await Booking.findByIdAndUpdate(
+      req.params.id,
+      { ...(status && { status }), ...(notes !== undefined && { notes }), ...(read !== undefined && { read }) },
+      { new: true }
+    );
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    res.json(booking);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    await deleteFromCloudinary(photo.publicId);
-    photo.deleteOne();
-    await artist.save();
-    res.json(artist);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// DELETE /api/booking/:id — admin
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const booking = await Booking.findByIdAndDelete(req.params.id);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    res.json({ message: 'Booking deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;
