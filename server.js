@@ -13,6 +13,8 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5500',
   'http://127.0.0.1:5500',
+   'https://frontend-three-pied-30.vercel.app'  // ADD THIS
+
 ];
 app.use(cors({
   origin: (origin, cb) => {
