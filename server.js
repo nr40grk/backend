@@ -16,13 +16,29 @@ const allowedOrigins = [
    'https://frontend-three-pied-30.vercel.app'  // ADD THIS
 
 ];
+// FIND THIS:
+
+// REPLACE WITH THIS:
 app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error('Not allowed by CORS'));
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5500',
+      'http://127.0.0.1:5500',
+      'https://frontend-three-pied-30.vercel.app'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
   },
-  credentials: true,
-}));
+  credentials: true
+}));ntials: true,
 
 // ─── BODY PARSING ───
 app.use(express.json({ limit: '10mb' }));
