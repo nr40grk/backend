@@ -16,6 +16,10 @@ const artistSchema = new mongoose.Schema({
     gr: { type: String, required: true, trim: true },
     en: { type: String, required: true, trim: true },
   },
+  profilePhoto: {
+  url: { type: String, default: '' },
+  publicId: { type: String, default: '' },
+},
   photos: { type: [photoSchema], default: [] },
   order: { type: Number, default: 0 }, // for custom display ordering
   active: { type: Boolean, default: true },

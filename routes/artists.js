@@ -96,4 +96,24 @@ router.get('/:id', async (req, res) => {
     res.json(artist);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// POST /api/artists/:id/profile-photo — admin
+router.post('/:id/profile-photo', auth, (req, res) => {
+  uploadArtistPhoto(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    try {
+      const artist = await Artist.findById(req.params.id);
+      if (!artist) return res.status(404).json({ error: 'Artist not found' });
+
+      // Delete old profile photo from Cloudinary if exists
+      if (artist.profilePhoto?.publicId) {
+        await deleteFromCloudinary(artist.profilePhoto.publicId);
+      }
+
+      const result = await processArtistPhoto(req.file);
+      artist.profilePhoto = { url: result.secure_url, publicId: result.public_id };
+      await artist.save();
+      res.json(artist);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+});
 module.exports = router;
