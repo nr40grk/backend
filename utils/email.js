@@ -3,7 +3,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const STUDIO = {
   name: 'NR40 Athens',
-  address: 'Κανιγγός 27, Αθήνα 106 82',
+  address: 'Κάνιγγος 27, Αθήνα 106 82',
   phone: '+30 210 380 6408',
   email: 'info@nr40athens.com',
   instagram: 'https://www.instagram.com/nr40_ath/',
