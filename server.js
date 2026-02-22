@@ -26,11 +26,13 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5500',
-      'http://127.0.0.1:5500',
-      'https://frontend-three-pied-30.vercel.app'
-    ];
+  'http://localhost:3000',
+  'http://localhost:5500',
+  'http://127.0.0.1:5500',
+  'https://frontend-three-pied-30.vercel.app',
+  'https://nr40athens.com',
+  'https://www.nr40athens.com',
+];
     
     if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('vercel.app')) {
       callback(null, true);
