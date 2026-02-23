@@ -9,39 +9,25 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 
 // ─── CORS ───
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:3000',
-  'http://localhost:5500',
-  'http://127.0.0.1:5500',
-   'https://frontend-three-pied-30.vercel.app'  // ADD THIS
-
-];
-// FIND THIS:
-
-// REPLACE WITH THIS:
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
-    
     const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:5500',
-  'http://127.0.0.1:5500',
-  'https://frontend-three-pied-30.vercel.app',
-  'https://nr40athens.com',
-  'https://www.nr40athens.com',
-];
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('vercel.app')) {
+      'http://localhost:3000',
+      'http://localhost:5500',
+      'http://127.0.0.1:5500',
+      'https://frontend-three-pied-30.vercel.app',
+      'https://nr40athens.com',
+      'https://www.nr40athens.com',
+    ];
+    if (allowedOrigins.includes(origin) || origin.includes('vercel.app')) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
-}));ntials: true,
+  credentials: true,
+}));
 
 // ─── BODY PARSING ───
 app.use(express.json({ limit: '10mb' }));
@@ -49,12 +35,12 @@ app.use(express.urlencoded({ extended: true }));
 
 // ─── RATE LIMITING ───
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 100,
   message: { error: 'Too many requests, please try again later.' },
 });
 const formLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
+  windowMs: 60 * 60 * 1000,
   max: 10,
   message: { error: 'Too many submissions, please try again later.' },
 });
@@ -66,7 +52,8 @@ app.use('/api/contact', formLimiter);
 app.use('/api/artists', require('./routes/artists'));
 app.use('/api/booking', require('./routes/booking'));
 app.use('/api/contact', require('./routes/contact'));
-app.use('/api/admin', require('./routes/admin'));
+app.use('/api/admin',   require('./routes/admin'));
+app.use('/api/gallery', require('./routes/gallery'));   // ← NEW
 
 // ─── HEALTH CHECK ───
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
