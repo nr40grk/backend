@@ -67,8 +67,10 @@ router.post('/', (req, res) => {
 // GET /api/booking — admin
 router.get('/', auth, async (req, res) => {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
-    const filter = status ? { status } : {};
+    const { status, service, page = 1, limit = 20 } = req.query;
+const filter = {};
+if (status)  filter.status  = status;
+if (service) filter.service = service;
     const bookings = await Booking.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
