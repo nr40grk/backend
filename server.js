@@ -53,8 +53,8 @@ app.use('/api/artists', require('./routes/artists'));
 app.use('/api/booking', require('./routes/booking'));
 app.use('/api/contact', require('./routes/contact'));
 app.use('/api/admin',   require('./routes/admin'));
-app.use('/api/gallery', require('./routes/gallery'));   // ← NEW
-
+app.use('/api/gallery', require('./routes/gallery'));
+app.use('/api/events',  require('./routes/events')); 
 // ─── HEALTH CHECK ───
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
