@@ -4,13 +4,17 @@ const GalleryPhoto = require('../models/Galleryphoto');
 const auth = require('../middleware/auth');
 const { uploadGalleryPhoto, processGalleryPhoto, deleteFromCloudinary } = require('../utils/cloudinary');
 
-// ─── PUBLIC: GET all active photos (optionally filtered by type) ───
+// ─── PUBLIC: GET all active photos (optionally filtered by type/featured) ───
 // GET /api/gallery?type=tattoo|studio
+// GET /api/gallery?type=studio&featured=true  → returns only the featured about photo
 router.get('/', async (req, res) => {
   try {
     const filter = { active: true };
     if (req.query.type && ['tattoo', 'studio'].includes(req.query.type)) {
       filter.type = req.query.type;
+    }
+    if (req.query.featured === 'true') {
+      filter.featured = true;
     }
     const photos = await GalleryPhoto.find(filter).sort({ order: 1, createdAt: -1 });
     res.json(photos);
@@ -55,6 +59,7 @@ router.post('/', auth, (req, res) => {
         caption: caption || '',
         order: parseInt(order) || 0,
         active: true,
+        featured: false,
       });
       res.status(201).json(photo);
     } catch (err) {
@@ -63,14 +68,27 @@ router.post('/', auth, (req, res) => {
   });
 });
 
-// ─── ADMIN: Update caption / order / active ───
+// ─── ADMIN: Update caption / order / active / featured ───
 // PATCH /api/gallery/:id
+// When featured:true is set, automatically clears featured on all other studio photos
 router.patch('/:id', auth, async (req, res) => {
   try {
     const allowed = {};
-    if (req.body.caption !== undefined) allowed.caption = req.body.caption;
-    if (req.body.order  !== undefined) allowed.order   = parseInt(req.body.order) || 0;
-    if (req.body.active !== undefined) allowed.active  = req.body.active;
+    if (req.body.caption  !== undefined) allowed.caption  = req.body.caption;
+    if (req.body.order    !== undefined) allowed.order    = parseInt(req.body.order) || 0;
+    if (req.body.active   !== undefined) allowed.active   = req.body.active;
+    if (req.body.featured !== undefined) allowed.featured = req.body.featured;
+
+    // If setting this photo as featured, unset all other studio photos first
+    if (allowed.featured === true) {
+      const target = await GalleryPhoto.findById(req.params.id);
+      if (!target) return res.status(404).json({ error: 'Photo not found' });
+      await GalleryPhoto.updateMany(
+        { type: target.type, _id: { $ne: req.params.id } },
+        { $set: { featured: false } }
+      );
+    }
+
     const photo = await GalleryPhoto.findByIdAndUpdate(req.params.id, allowed, { new: true });
     if (!photo) return res.status(404).json({ error: 'Photo not found' });
     res.json(photo);
@@ -86,7 +104,7 @@ router.delete('/:id', auth, async (req, res) => {
     const photo = await GalleryPhoto.findByIdAndDelete(req.params.id);
     if (!photo) return res.status(404).json({ error: 'Photo not found' });
     if (photo.publicId) {
-      await deleteFromCloudinary(photo.publicId).catch(() => {}); // non-blocking
+      await deleteFromCloudinary(photo.publicId).catch(() => {});
     }
     res.json({ message: 'Deleted' });
   } catch (err) {

@@ -7,6 +7,7 @@ const galleryPhotoSchema = new mongoose.Schema({
   caption:   { type: String, default: '' },
   order:     { type: Number, default: 0 },
   active:    { type: Boolean, default: true },
+  featured:  { type: Boolean, default: false }, // used to pin the About Us image
 }, { timestamps: true });
 
 module.exports = mongoose.model('GalleryPhoto', galleryPhotoSchema);
