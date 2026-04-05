@@ -3,7 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-
+const testimonialRoutes = require('./routes/testimonials');
 const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
@@ -55,6 +55,8 @@ app.use('/api/contact', require('./routes/contact'));
 app.use('/api/admin',   require('./routes/admin'));
 app.use('/api/gallery', require('./routes/gallery'));
 app.use('/api/events',  require('./routes/events')); 
+app.use('/api/testimonials', testimonialRoutes);
+
 // ─── HEALTH CHECK ───
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
